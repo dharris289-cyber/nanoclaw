@@ -23,17 +23,14 @@ DC_SMTP_PORT
 
 ## 3. Rebuild and restart
 
-Run from your NanoClaw project root:
-
 ```bash
 pnpm run build
-source setup/lib/install-slug.sh
 
 # Linux
-systemctl --user restart $(systemd_unit)
+systemctl --user restart nanoclaw
 
 # macOS
-launchctl kickstart -k gui/$(id -u)/$(launchd_label)
+launchctl kickstart -k gui/$(id -u)/com.nanoclaw
 ```
 
 ## 4. Remove account data (optional)
