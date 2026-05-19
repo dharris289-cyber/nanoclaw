@@ -177,10 +177,18 @@ export function migrateGroupsToClaudeLocal(): void {
     }
   }
 
+  // Remove only the CLAUDE.md files from groups/global/ — other files (e.g.
+  // youtube-config.json, API key files) are runtime data that containers read
+  // via the /workspace/global/ mount and must not be deleted.
   const globalDir = path.join(GROUPS_DIR, 'global');
   if (fs.existsSync(globalDir)) {
-    fs.rmSync(globalDir, { recursive: true, force: true });
-    actions.push('groups/global/ removed');
+    for (const name of ['CLAUDE.md', 'CLAUDE.local.md']) {
+      const f = path.join(globalDir, name);
+      if (fs.existsSync(f)) {
+        fs.unlinkSync(f);
+        actions.push(`groups/global/${name} removed`);
+      }
+    }
   }
 
   if (actions.length > 0) {
