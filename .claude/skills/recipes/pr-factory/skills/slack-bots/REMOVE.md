@@ -6,7 +6,7 @@ Deletes the five skill-owned modules and the four guard tests, removes the two b
 >
 > **Data notes.**
 > - `messaging_groups` rows with `instance` `'slack-supervisor'` or `'slack-tester'` reference adapters that no longer run. Outbound delivery for their sessions is exact-key, so it gets the normal offline-adapter handling (warn + retry path) — it never falls back through the worker bot. Inbound from the removed apps stops arriving once the apps are disabled. Delete or re-wire those rows (and their wirings/sessions) when removing for good — use the `pnpm run ncl` group/wiring verbs, not raw SQL.
-> - If the fork-upgrade migration already ran on this DB, its `schema_version` row (`module-slack-bots-bot-id-to-instance`) and the converted data stay — the conversion is forward-only and matches core's own 016 schema, so nothing needs reversing.
+> - If the legacy-upgrade migration already ran on this DB, its `schema_version` row (`module-slack-bots-bot-id-to-instance`) and the converted data stay — the conversion is forward-only and matches core's own 016 schema, so nothing needs reversing.
 
 ## 1. Delete the skill-owned files and tests
 

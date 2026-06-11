@@ -128,7 +128,7 @@ All present?                         → enabled
 
 **File:** `src/modules/pr-factory/bootstrap.ts`
 
-Runs on every boot (from the adapter-ready callback). All operations are idempotent and self-correcting: existing wirings with drifted `engage_mode` / `session_mode` values are updated, not skipped. Messaging groups are keyed by `(channel_type, platform_id, instance)` on the channel-instance substrate (upstream PR #2733) and resolved with exact-instance lookups — the worker, supervisor, and tester rows share one Slack channel without shadowing each other.
+Runs on every boot (from the adapter-ready callback). All operations are idempotent and self-correcting: existing wirings with drifted `engage_mode` / `session_mode` values are updated, not skipped. Messaging groups are keyed by `(channel_type, platform_id, instance)` on the channel-instance substrate (core migration 016) and resolved with exact-instance lookups — the worker, supervisor, and tester rows share one Slack channel without shadowing each other.
 
 ### Worker
 
@@ -154,7 +154,7 @@ The tester agent group's instructions describe the operator's test environment, 
 **Migration:** `src/db/migrations/module-pr-factory-pr-threads-v2.ts` (name `module-pr-factory-pr-threads-v2`)
 **CRUD:** `src/db/pr-threads.ts`
 
-Central index mapping PR threads to sessions, in the central DB (`data/v2.db`). The delivering bot is resolved per messaging group via `messaging_groups.instance`, so the table carries no bot identity column. (The `-v2` migration name is deliberate: the runner dedupes by name, and installs upgraded from the pre-instance fork have the v1 name recorded — the new name is what makes the column-drop arm run there.)
+Central index mapping PR threads to sessions, in the central DB (`data/v2.db`). The delivering bot is resolved per messaging group via `messaging_groups.instance`, so the table carries no bot identity column. (The `-v2` migration name is deliberate: the runner dedupes by name, and installs upgraded from the legacy bot_id substrate have the v1 name recorded — the new name is what makes the column-drop arm run there.)
 
 ```sql
 CREATE TABLE pr_threads (
@@ -385,7 +385,7 @@ Keys are exactly the namespaced user ids core's approval flow reports (`<channel
 
 ## Slack: Three Bots, One Channel Type
 
-Three Slack apps in one workspace, on core's native channel-instance substrate (upstream PR #2733; `slack-bots` component). One instance value per adapter drives the registry key, the webhook route, the Chat SDK state namespace, and the `messaging_groups.instance` column:
+Three Slack apps in one workspace, on core's native channel-instance substrate (core migration 016; `slack-bots` component). One instance value per adapter drives the registry key, the webhook route, the Chat SDK state namespace, and the `messaging_groups.instance` column:
 
 | Bot | Adapter | Instance | Webhook path |
 |-----|---------|----------|--------------|
@@ -450,7 +450,7 @@ tail -f data/pr-activity/<owner>/<repo>/*.log     # all PRs
 | File | Purpose |
 |------|---------|
 | `src/db/pr-threads.ts` | CRUD for pr_threads |
-| `src/db/migrations/module-pr-factory-pr-threads-v2.ts` | Creates pr_threads (drops the legacy bot column on fork upgrades) |
+| `src/db/migrations/module-pr-factory-pr-threads-v2.ts` | Creates pr_threads (drops the legacy bot column on legacy-substrate upgrades) |
 | `src/db/migrations/module-slack-bots-bot-id-to-instance.ts` | Fork-upgrade: bot_id substrate → instance substrate |
 | `src/db/sessions.ts` | (+4 appended pending_approvals helpers) |
 

@@ -24,28 +24,28 @@ This is a **recipe**: a thin composition layer over the component skills shipped
     slack-canvas/           # markdown → Slack Canvas rendering (optional)
 ```
 
-## Prerequisites — the core train
+## Prerequisites — core version
 
-The components make near-zero core edits because core already ships the hooks they register against. Probe each; on a failed probe, **stop** and land the named PR (or update to a version of core that contains it) first.
+Requires **nanoclaw ≥ 2.1.11**. The components make near-zero core edits because core already ships the hooks they register against. The probes are the real check — run each; on a failed probe, **stop** and update core first.
 
-| Probe | Lands with |
+| Probe | Core capability |
 |---|---|
-| `test -f src/db/migrations/016-messaging-group-instance.ts && grep -q 'instance?: string' src/channels/adapter.ts && echo OK` | PR #2733 — native channel-instance substrate |
-| `grep -q 'export function getDeliveryAction' src/delivery.ts && echo OK` | PR #2734 — delivery-action read-side getter |
-| `grep -q 'byLine' src/channels/chat-sdk-bridge.ts && echo OK` | PR #2735 — approval-card actor byline |
-| `grep -q 'justWoke' src/host-sweep.ts && echo OK` | PR #2736 — host-sweep wake grace period |
-| `grep -q 'export function registerApprovalResolvedHandler' src/modules/approvals/primitive.ts && echo OK` | PR #2737 — approval-resolved hook |
-| `awk '/export function writeOutboundDirect/,/^}/' src/session-manager.ts \| grep -q openOutboundDbRw && echo OK` | PR #2738 — writeOutboundDirect read-write fix |
-| `grep -q 'export function registerWebhookHandler' src/webhook-server.ts && echo OK` | PR #2739 — raw webhook-route registry |
+| `test -f src/db/migrations/016-messaging-group-instance.ts && grep -q 'instance?: string' src/channels/adapter.ts && echo OK` | native channel-instance substrate |
+| `grep -q 'export function getDeliveryAction' src/delivery.ts && echo OK` | delivery-action read-side getter |
+| `grep -q 'byLine' src/channels/chat-sdk-bridge.ts && echo OK` | approval-card actor byline |
+| `grep -q 'justWoke' src/host-sweep.ts && echo OK` | host-sweep wake grace period |
+| `grep -q 'export function registerApprovalResolvedHandler' src/modules/approvals/primitive.ts && echo OK` | approval-resolved hook |
+| `awk '/export function writeOutboundDirect/,/^}/' src/session-manager.ts \| grep -q openOutboundDbRw && echo OK` | writeOutboundDirect opens read-write |
+| `grep -q 'export function registerWebhookHandler' src/webhook-server.ts && echo OK` | raw webhook-route registry |
 
-The component SKILL.mds re-probe the subset each one depends on; this table is the full train.
+The component SKILL.mds re-probe the subset each one depends on; this table is the full set.
 
 ## Apply order
 
 Order is load-bearing: `slack-bots` patches the adapter `/add-slack` installs, `pr-factory-core` imports `slack-bots`' instance constants, and the three optional components register on seams owned by `pr-factory-core`. Apply each component by following its own SKILL.md.
 
 1. **`/add-slack`** (stock channel skill) — the worker bot. **Pin `@chat-adapter/slack@4.26.0`**, not the 4.27.0 in that skill's text: 4.27.0 pulls `chat@4.27.0` types that fail the build against core's `chat@^4.24.0` resolution. Replace that skill's install command with `pnpm install @chat-adapter/slack@4.26.0 --save-exact` — the exact pin matters; a caret range re-resolves to 4.27.0 and breaks the build later.
-2. **`skills/slack-bots`** — supervisor + tester Slack apps as named channel instances, sibling-echo suppression, the bot_id→instance fork-upgrade migration.
+2. **`skills/slack-bots`** — supervisor + tester Slack apps as named channel instances, sibling-echo suppression, the bot_id→instance legacy-upgrade migration.
 3. **`skills/pr-factory-core`** — the engine. Inert until `GITHUB_WEBHOOK_SECRET` is set.
 4. **`skills/gh-action-approval`** *(optional)* — without it, `credentialed_gh` calls answer "component not installed".
 5. **`skills/vm-test-orchestrator`** *(optional)* — without it, approved test plans answer "no test orchestrator installed".
@@ -93,9 +93,9 @@ All suites green. `src/recipe-pr-factory-stack.test.ts` is the composed-stack le
 - **VM test runs** — approved plans clone an ephemeral VM from a template, check out the PR, build, boot, and hand the VM to the tester agent; PASS wakes the worker to propose a merge, FAIL to analyze.
 - **Canvases** — test plans, results, and review writeups render as Slack Canvases instead of file uploads (paid Slack plan; falls back to `.md` uploads otherwise).
 
-## Upgrading a pre-instance fork install
+## Upgrading a legacy bot_id install
 
-For installs that ran the PR Factory on the old `bot_id` multi-bot substrate. Boot order matters — **never boot bare core on such a DB** (migration 016 crash-loops on the supervisor/tester rows):
+For installs that ran an earlier PR Factory build on the old `bot_id` multi-bot substrate. Boot order matters — **never boot bare core on such a DB** (migration 016 crash-loops on the supervisor/tester rows):
 
 1. Stop the host.
 2. Check out a tree with this recipe **fully applied** (all components).

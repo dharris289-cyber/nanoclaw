@@ -1,6 +1,6 @@
 ---
 name: slack-bots
-description: PR Factory component — add the supervisor and tester Slack bot adapters as named channel instances ('slack-supervisor', 'slack-tester') alongside the stock /add-slack worker bot, with shared sibling-bot echo suppression so the three bots never echo-loop each other, sibling-mention suppression for sticky threads, and a fork-upgrade migration for bot_id-shaped DBs.
+description: PR Factory component — add the supervisor and tester Slack bot adapters as named channel instances ('slack-supervisor', 'slack-tester') alongside the stock /add-slack worker bot, with shared sibling-bot echo suppression so the three bots never echo-loop each other, sibling-mention suppression for sticky threads, and an upgrade migration for legacy bot_id-shaped DBs.
 ---
 
 # slack-bots (PR Factory component)
@@ -11,7 +11,7 @@ Runs two extra Slack bot identities alongside the stock `/add-slack` worker bot,
 - **`slack-tester`** (`src/channels/slack-tester.ts`) — instance `'slack-tester'` (exported as `TESTER_INSTANCE`), webhook `/webhook/slack-tester`, env `SLACK_TESTER_BOT_TOKEN` / `SLACK_TESTER_SIGNING_SECRET`.
 - **`src/channels/slack-bot-ids.ts`** — a shared module-level `Set` of Slack bot user IDs, `registerSlackBotUserId(token, label)` (resolves a bot's user id via Slack `auth.test`), and `withSiblingEchoGuard(bridge, ids)`. Every Slack adapter (worker, supervisor, tester) pushes its own id into the Set at factory time and returns its bridge wrapped in the guard — each bot silently drops inbound messages authored by its siblings, across **all four** Chat SDK dispatch paths (subscribed, new-mention, DM, plain), preventing cross-bot echo loops in shared channels. Trade-off (documented in the file header): a sibling message's attachments are downloaded before the drop.
 - **`src/channels/sibling-mention.ts`** — `hasSiblingMention(mg, text)`: suppresses a mention-sticky follow-up that starts with `@` when a sibling named-instance mention-mode bot shares the channel (the `@` is addressed to the sibling; without this, the supervisor's sticky thread would also fire on every `@pr-tester ...` message).
-- **`src/db/migrations/module-slack-bots-bot-id-to-instance.ts`** — fork-upgrade migration: converts a `bot_id`-shaped multi-bot DB (the pre-instance fork substrate) to migration 016's instance schema, including the Chat SDK state-namespace rewrite. Pure no-op on fresh installs.
+- **`src/db/migrations/module-slack-bots-bot-id-to-instance.ts`** — legacy-upgrade migration: converts a `bot_id`-shaped multi-bot DB (the legacy pre-instance substrate) to migration 016's instance schema, including the Chat SDK state-namespace rewrite. Pure no-op on fresh installs.
 
 Each adapter self-registers on import and is inert when its bot token is unset.
 
@@ -31,13 +31,13 @@ Probe each before applying; stop on a failed probe and do what it names first.
 
    If it fails: run `/add-slack`, then return here.
 
-2. **Core ships the channel-instance substrate** (upstream PR #2733) — the adapters pass `instance` to `createChatSdkBridge`, the registry keys by instance, and `messaging_groups` carries the `instance` column:
+2. **Core ships the channel-instance substrate** (nanoclaw ≥ 2.1.11) — the adapters pass `instance` to `createChatSdkBridge`, the registry keys by instance, and `messaging_groups` carries the `instance` column:
 
    ```bash
    grep -q 'instance?: string' src/channels/adapter.ts && test -f src/db/migrations/016-messaging-group-instance.ts && echo OK
    ```
 
-   If it fails: **stop — land PR #2733 (native channel-instance substrate) first.** This skill makes no core edits to substitute for it.
+   If it fails: **stop — update core to a version that ships the native channel-instance substrate (nanoclaw ≥ 2.1.11) first.** This skill makes no core edits to substitute for it.
 
 3. **Two additional Slack apps** in the same workspace as the worker bot (created in the Credentials section below), with their bot tokens and signing secrets at hand.
 
@@ -118,7 +118,7 @@ Insert one line between them:
       const existing = findSessionForAgent(agent.agent_group_id, mg.id, threadId);
 ```
 
-### 5. Register the fork-upgrade migration (`src/db/migrations/index.ts`)
+### 5. Register the legacy-upgrade migration (`src/db/migrations/index.ts`)
 
 **5a.** Append to the import block:
 
@@ -126,7 +126,7 @@ Insert one line between them:
 import { moduleSlackBotsBotIdToInstance } from './module-slack-bots-bot-id-to-instance.js';
 ```
 
-**5b.** In the `migrations` array, insert `moduleSlackBotsBotIdToInstance,` **immediately before `migration016,`**. The ordering is load-bearing: on a fork DB shaped by the old `bot_id` substrate, 016's recreate would silently drop `bot_id` and then collide on `UNIQUE(channel_type, platform_id, instance)` — a boot crash-loop. On fresh DBs the migration is a guarded no-op.
+**5b.** In the `migrations` array, insert `moduleSlackBotsBotIdToInstance,` **immediately before `migration016,`**. The ordering is load-bearing: on a DB shaped by the legacy `bot_id` substrate, 016's recreate would silently drop `bot_id` and then collide on `UNIQUE(channel_type, platform_id, instance)` — a boot crash-loop. On fresh DBs the migration is a guarded no-op.
 
 ### 6. Copy the guard tests
 
@@ -172,9 +172,9 @@ Wire each bot's `messaging_groups` row with the matching `instance` (`slack-supe
 
 Restart the host after applying so the new adapters connect.
 
-## Upgrading a bot_id-shaped fork install
+## Upgrading a legacy bot_id install
 
-If the install previously ran the pre-instance multi-bot substrate (`messaging_groups.bot_id`, namespace-prefixed `chat_sdk_*` keys), the copied migration converts everything at next boot: `bot_id NULL → instance = channel_type`, `'pr-supervisor' → 'slack-supervisor'`, `'pr-tester' → 'slack-tester'`, Chat SDK keys re-namespaced (worker unprefixed, named instances renamed), `chat_sdk_locks` cleared (TTL-bound; expect at most one re-@mention per subscribed thread). Webhook URLs are byte-identical to the old fork's, so the Slack app consoles need zero changes. **Do not boot a tree without this skill applied on such a DB** — bare 016 crash-loops on it (see the migration header).
+If the install previously ran the legacy pre-instance multi-bot substrate (`messaging_groups.bot_id`, namespace-prefixed `chat_sdk_*` keys), the copied migration converts everything at next boot: `bot_id NULL → instance = channel_type`, `'pr-supervisor' → 'slack-supervisor'`, `'pr-tester' → 'slack-tester'`, Chat SDK keys re-namespaced (worker unprefixed, named instances renamed), `chat_sdk_locks` cleared (TTL-bound; expect at most one re-@mention per subscribed thread). Webhook URLs are byte-identical to the legacy install's, so the Slack app consoles need zero changes. **Do not boot a tree without this skill applied on such a DB** — bare 016 crash-loops on it (see the migration header).
 
 ## Known smell (declared)
 

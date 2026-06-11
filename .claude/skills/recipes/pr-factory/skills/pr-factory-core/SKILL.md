@@ -58,7 +58,7 @@ Probe each before applying; stop on a failed probe and do what it names first.
    grep -q 'registerApprovalResolvedHandler' src/modules/approvals/primitive.ts && echo OK
    ```
 
-   If it fails: **stop — land the approval-resolved hook PR first.** This skill makes no core edits to substitute for it.
+   If it fails: **stop — core is missing the approval-resolved hook; update to nanoclaw ≥ 2.1.11 first.** This skill makes no core edits to substitute for it.
 
 4. **Core ships the delivery-action getter**:
 
@@ -66,7 +66,7 @@ Probe each before applying; stop on a failed probe and do what it names first.
    grep -q 'export function getDeliveryAction' src/delivery.ts && echo OK
    ```
 
-   If it fails: **stop — land the delivery-action getter PR first.**
+   If it fails: **stop — core is missing the delivery-action getter; update to nanoclaw ≥ 2.1.11 first.**
 
 5. **Core ships the raw webhook registry**:
 
@@ -74,15 +74,15 @@ Probe each before applying; stop on a failed probe and do what it names first.
    grep -q 'export function registerWebhookHandler' src/webhook-server.ts && echo OK
    ```
 
-   If it fails: **stop — land the raw webhook-registry PR first.** This skill mounts `/webhook/github` through that registry and makes no webhook-server edits.
+   If it fails: **stop — core is missing the raw webhook registry; update to nanoclaw ≥ 2.1.11 first.** This skill mounts `/webhook/github` through that registry and makes no webhook-server edits.
 
-6. **Core ships the channel-instance substrate** (upstream PR #2733):
+6. **Core ships the channel-instance substrate**:
 
    ```bash
    test -f src/db/migrations/016-messaging-group-instance.ts && echo OK
    ```
 
-   If it fails: **stop — land PR #2733 first.**
+   If it fails: **stop — core is missing the channel-instance substrate; update to nanoclaw ≥ 2.1.11 first.**
 
 Each step below is idempotent: if the file already contains the patched form, leave it as is and continue.
 
@@ -120,7 +120,7 @@ cp $SKILL/files/src/db/migrations/module-pr-factory-pr-threads-v2.ts src/db/migr
 import { modulePrFactoryPrThreadsV2 } from './module-pr-factory-pr-threads-v2.js';
 ```
 
-**3b.** Append `modulePrFactoryPrThreadsV2,` as the **last** entry of the `migrations` array. The migration name carries a `-v2` suffix deliberately: the runner dedupes by name, and installs upgraded from the pre-instance fork already have `'module-pr-factory-pr-threads'` recorded — the new name is what makes the bot_id-column drop run there. Never rename it back.
+**3b.** Append `modulePrFactoryPrThreadsV2,` as the **last** entry of the `migrations` array. The migration name carries a `-v2` suffix deliberately: the runner dedupes by name, and installs upgraded from the legacy bot_id substrate already have `'module-pr-factory-pr-threads'` recorded — the new name is what makes the bot_id-column drop run there. Never rename it back.
 
 ### 4. Append the pending-approvals helpers (`src/db/sessions.ts`)
 
@@ -202,7 +202,7 @@ cp $SKILL/files/container/agent-runner/src/mcp-tools/pr-factory-tools.test.ts co
 | `src/modules/pr-factory/handler.test.ts` | handler's consumption of resolveSession / writeSessionMessage / pr_threads on real session DBs: the PR_CONTEXT trigger contract, the default triage directive, synchronize kill/re-create, draft deferral, redelivery no-op |
 | `src/modules/pr-factory/orchestrator.test.ts` | The two-DB seam: writeOutboundDirect into worker outbound.db, tester-instance session resolution + inbound trigger + wake, PASS/FAIL verdict branching |
 | `src/modules/approvals/response-handler-reject.test.ts` | The module's `registerApprovalResolvedHandler` registration through the REAL response handler (with a role-seeded clicking admin — pins the authorization requirement too) |
-| `src/db/pr-threads.test.ts` | Migration barrel presence (real `runMigrations`), v2 schema shape (no bot column), the fork-upgrade recreate arm, idempotence, CRUD |
+| `src/db/pr-threads.test.ts` | Migration barrel presence (real `runMigrations`), v2 schema shape (no bot column), the legacy-upgrade recreate arm, idempotence, CRUD |
 | `src/db/sessions-approval-helpers.test.ts` | The four appended sessions.ts helpers |
 | `container/.../pr-factory-registration.test.ts` | The container mcp-tools barrel line (AST: side-effect import before `startMcpServer()`) |
 | `container/.../pr-factory-tools.test.ts` | The six tools' messages_out contract: exact `pr_*` action strings (paired with the host registrations), odd-seq, repo-omission, command normalization |
