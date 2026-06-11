@@ -5,7 +5,6 @@
  */
 import { createTelegramAdapter } from '@chat-adapter/telegram';
 
-import { ASSISTANT_NAME } from '../config.js';
 import { readEnvFile } from '../env.js';
 import { log } from '../log.js';
 import { createMessagingGroup, getMessagingGroupByPlatform, updateMessagingGroup } from '../db/messaging-groups.js';
@@ -196,40 +195,6 @@ function createPairingInterceptor(
   };
 }
 
-async function sendCommandResponse(token: string, platformId: string, text: string): Promise<void> {
-  const chatId = platformId.split(':').slice(1).join(':');
-  if (!chatId) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text }),
-    });
-  } catch (err) {
-    log.warn('Telegram command response failed', { err });
-  }
-}
-
-function isCommand(text: string, cmd: string): boolean {
-  const t = text.trim().toLowerCase();
-  return t === cmd || t.startsWith(`${cmd}@`) || t.startsWith(`${cmd} `);
-}
-
-function createCommandInterceptor(token: string, hostOnInbound: ChannelSetup['onInbound']): ChannelSetup['onInbound'] {
-  return async (platformId, threadId, message) => {
-    const { text } = readInboundFields(message);
-    if (isCommand(text, '/chatid')) {
-      await sendCommandResponse(token, platformId, `Chat ID: ${platformId}`);
-      return;
-    }
-    if (isCommand(text, '/ping')) {
-      await sendCommandResponse(token, platformId, `${ASSISTANT_NAME} is online.`);
-      return;
-    }
-    hostOnInbound(platformId, threadId, message);
-  };
-}
-
 registerChannelAdapter('telegram', {
   factory: () => {
     const env = readEnvFile(['TELEGRAM_BOT_TOKEN']);
@@ -268,13 +233,9 @@ registerChannelAdapter('telegram', {
         }
       },
       async setup(hostConfig: ChannelSetup) {
-        const withPairing: ChannelSetup = {
+        const intercepted: ChannelSetup = {
           ...hostConfig,
           onInbound: createPairingInterceptor(botUsernamePromise, hostConfig.onInbound, token),
-        };
-        const intercepted: ChannelSetup = {
-          ...withPairing,
-          onInbound: createCommandInterceptor(token, withPairing.onInbound),
         };
         return withRetry(() => bridge.setup(intercepted), 'bridge.setup');
       },
