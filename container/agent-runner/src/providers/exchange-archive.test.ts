@@ -20,7 +20,7 @@ function makeTmpDir(): string {
 }
 
 describe('provider exchange archive', () => {
-  it('writes unique exchange-level archives with provider metadata', () => {
+  it('appends same-thread exchanges into one file with a single header', () => {
     const conversationsDir = makeTmpDir();
     const timestamp = new Date('2026-06-03T12:34:56.789Z');
 
@@ -43,17 +43,47 @@ describe('provider exchange archive', () => {
       timestamp,
     });
 
-    expect(first).not.toBeNull();
-    expect(second).not.toBeNull();
-    expect(first).not.toBe(second);
+    // Same thread → same (thread-stable) file, not a new file per exchange.
+    expect(first).toBe('codex-thread-123.md');
+    expect(second).toBe(first);
+    expect(fs.readdirSync(conversationsDir)).toHaveLength(1);
 
     const content = fs.readFileSync(path.join(conversationsDir, first!), 'utf-8');
-    expect(content).toContain('# Codex Exchange');
+    // Header (thread-level metadata) written exactly once.
+    expect(content.match(/# Codex Conversation/g)).toHaveLength(1);
     expect(content).toContain('Provider: codex');
     expect(content).toContain('Continuation/thread id: thread-123');
-    expect(content).toContain('Status: completed');
+    // Both exchanges present, each with its own status line.
     expect(content).toContain('**User**: hello');
     expect(content).toContain('**Assistant**: world');
+    expect(content).toContain('**User**: hello again');
+    expect(content).toContain('**Assistant**: world again');
+    expect(content.match(/Status: completed/g)).toHaveLength(2);
+  });
+
+  it('writes a separate file per thread', () => {
+    const conversationsDir = makeTmpDir();
+
+    const a = archiveProviderExchange({
+      conversationsDir,
+      provider: 'codex',
+      prompt: 'p',
+      result: 'r',
+      continuation: 'thread-a',
+      status: 'completed',
+    });
+    const b = archiveProviderExchange({
+      conversationsDir,
+      provider: 'codex',
+      prompt: 'p',
+      result: 'r',
+      continuation: 'thread-b',
+      status: 'completed',
+    });
+
+    expect(a).toBe('codex-thread-a.md');
+    expect(b).toBe('codex-thread-b.md');
+    expect(fs.readdirSync(conversationsDir)).toHaveLength(2);
   });
 
   it('skips empty result text', () => {
