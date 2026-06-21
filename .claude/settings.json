@@ -1,5 +1,28 @@
 {
   "sandbox": {
     "enabled": false
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/max_home/NanoClaw/.claude/hooks/self-improvement/activator.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/max_home/NanoClaw/.claude/hooks/self-improvement/error-detector.sh"
+          }
+        ]
+      }
+    ]
   }
 }
