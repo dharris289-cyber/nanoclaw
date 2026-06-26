@@ -23,6 +23,10 @@
         <string>{{HOME}}</string>
         <key>ASSISTANT_NAME</key>
         <string>Andy</string>
+        <key>OPENCODE_PROVIDER</key>
+        <string>openrouter</string>
+        <key>ANTHROPIC_BASE_URL</key>
+        <string>https://openrouter.ai/api/v1</string>
     </dict>
     <key>StandardOutPath</key>
     <string>{{PROJECT_ROOT}}/logs/nanoclaw.log</string>
